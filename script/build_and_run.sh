@@ -27,7 +27,9 @@ cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 printf "%s\n" "$ROOT_DIR" >"$APP_RESOURCES/default-context.txt"
 
-if [[ -f "$ROOT_DIR/docs/assets/icon.png" ]]; then
+if [[ -f "$ROOT_DIR/docs/assets/AppIcon.icns" ]]; then
+  cp "$ROOT_DIR/docs/assets/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
+elif [[ -f "$ROOT_DIR/docs/assets/icon.png" ]]; then
   cp "$ROOT_DIR/docs/assets/icon.png" "$APP_RESOURCES/AppIcon.png"
 elif [[ -f "$ROOT_DIR/work/promptfirefly-icon-512x512.png" ]]; then
   cp "$ROOT_DIR/work/promptfirefly-icon-512x512.png" "$APP_RESOURCES/AppIcon.png"
@@ -42,6 +44,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleName</key>
   <string>Prompt Firefly</string>
   <key>CFBundlePackageType</key>

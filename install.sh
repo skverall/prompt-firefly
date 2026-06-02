@@ -92,7 +92,9 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 /bin/cp "$BUILD_BINARY" "$APP_BINARY"
 /bin/chmod +x "$APP_BINARY"
 
-if [[ -f "$SOURCE_DIR/docs/assets/icon.png" ]]; then
+if [[ -f "$SOURCE_DIR/docs/assets/AppIcon.icns" ]]; then
+  /bin/cp "$SOURCE_DIR/docs/assets/AppIcon.icns" "$APP_RESOURCES/AppIcon.icns"
+elif [[ -f "$SOURCE_DIR/docs/assets/icon.png" ]]; then
   /bin/cp "$SOURCE_DIR/docs/assets/icon.png" "$APP_RESOURCES/AppIcon.png"
 fi
 
@@ -105,6 +107,8 @@ fi
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleName</key>
   <string>Prompt Firefly</string>
   <key>CFBundlePackageType</key>
