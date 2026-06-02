@@ -4,8 +4,8 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="PromptFirefly"
 BUNDLE_ID="com.shokhabbos.PromptFirefly"
-APP_VERSION="0.11.2"
-APP_BUILD="112"
+APP_VERSION="0.11.3"
+APP_BUILD="113"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

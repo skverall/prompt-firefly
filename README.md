@@ -21,7 +21,7 @@
 <p align="center">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-14%2B-111827?style=for-the-badge&logo=apple">
   <img alt="Swift" src="https://img.shields.io/badge/Swift-5.9+-F05138?style=for-the-badge&logo=swift&logoColor=white">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.11.2-2563eb?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.11.3-2563eb?style=for-the-badge">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-22c55e?style=for-the-badge">
 </p>
 

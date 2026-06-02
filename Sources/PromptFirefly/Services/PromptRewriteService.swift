@@ -19,6 +19,22 @@ enum PromptRewriteService {
             mode: .standard
         )
 
+        if introducesUnexpectedSpecifics(
+            originalPrompt: originalPrompt,
+            rewrittenPrompt: rewritten,
+            targetKind: targetKind
+        ) {
+            return try await requestRewrite(
+                originalPrompt: originalPrompt,
+                projectContext: projectContext,
+                targetKind: targetKind,
+                targetAppName: targetAppName,
+                captureSource: captureSource,
+                settings: settings,
+                mode: .intentCorrection
+            )
+        }
+
         if needsSubstantiveRetry(
             originalPrompt: originalPrompt,
             rewrittenPrompt: rewritten,
@@ -118,6 +134,8 @@ enum PromptRewriteService {
           assistant to act on without guessing.
         - Do not invent unrelated scope, fake facts, credentials, file names, dates, or business claims.
           You may make practical details explicit when they are clearly implied by the user's request.
+        - Do not reuse named tools, apps, platforms, channels, products, or CTA words from old requests.
+          Every rewrite must be based only on the current "Original rough text" and the provided local context.
         - Keep the user's tone and any concrete constraints they gave.
         - Use the project context only to resolve what the user refers to, never to add new scope.
         - Never treat an internal plugin/cache/path shown by the UI as the user's request unless the user clearly typed that path as part of the request.
@@ -125,16 +143,6 @@ enum PromptRewriteService {
 
         Target-specific rules:
         \(targetRules(for: targetKind))
-
-        Examples:
-        User: прочти implementation plan и сделай
-        Rewrite: Открой файл с планом внедрения (IMPLEMENTATION_PLAN.md), изучи его и выполни все описанные шаги. Реализуй план в коде, а не пересказывай его.
-
-        User: fix the login bug
-        Rewrite: Find and fix the bug in the login flow. Reproduce the issue, identify the root cause, and apply the fix.
-
-        User: Слушай, используя плагин ReMotion, сделай, пожалуйста, видео для нашего Инстаграма. Какое-нибудь интересное, с красивыми анимациями и информативное, и главное потом в конце продающееся.
-        Rewrite: Используя плагин ReMotion, создай вертикальное видео для Instagram Reels (9:16) для нашего приложения. Сделай его интересным, визуально красивым и информативным: продумай сценарий, структуру кадров, текст на экране, темп, переходы и анимации. В конце добавь сильный продающий финал с понятным призывом к действию, чтобы ролик был готов к публикации и реально подталкивал зрителя попробовать продукт.
         """
     }
 
@@ -148,6 +156,10 @@ enum PromptRewriteService {
             - For creative, video, design, plugin, or tool requests, preserve the selected tool/plugin name
               and include practical production details implied by the request: format, audience, content
               beats, visual style, final CTA/sales close, and deliverable.
+            - For Instagram/Reels video requests with a sales ending or CTA, the final CTA must ask viewers
+              to comment a short keyword under the post or Reel so the creator can follow up with an offer.
+              Do not send viewers to Telegram, WhatsApp, a bot, or DMs unless the user explicitly asked for
+              that channel.
             - Preserve selected tools, plugins, app names, and constraints exactly as the user intended.
             - If a plugin/tool is selected in the UI, do not replace the user's request with that plugin's local filesystem path.
             - Do not stop at punctuation-only cleanup unless the original is already a detailed, ready-to-run prompt.
@@ -200,7 +212,7 @@ enum PromptRewriteService {
 
         \(mode.extraUserInstruction)
 
-        Rewrite the rough text so it is ready to paste back into \(targetAppName).
+        Rewrite ONLY the current rough text above so it is ready to paste back into \(targetAppName).
         """
     }
 
@@ -217,6 +229,32 @@ enum PromptRewriteService {
         guard originalSignature.count >= 20 else { return false }
         return originalSignature == rewrittenSignature
     }
+
+    private static func introducesUnexpectedSpecifics(
+        originalPrompt: String,
+        rewrittenPrompt: String,
+        targetKind: TargetAppKind
+    ) -> Bool {
+        guard targetKind == .codingAssistant else { return false }
+
+        let original = originalPrompt.lowercased()
+        let rewritten = rewrittenPrompt.lowercased()
+
+        return watchedSpecificTerms.contains { term in
+            rewritten.contains(term) && !original.contains(term)
+        }
+    }
+
+    private static let watchedSpecificTerms = [
+        "remotion",
+        "re motion",
+        "instagram",
+        "инстаграм",
+        "reels",
+        "рилс",
+        "telegram",
+        "телеграм"
+    ]
 
     private static func semanticSignature(from text: String) -> String {
         var result = ""
@@ -260,6 +298,7 @@ enum PromptRewriteService {
 private enum RewriteMode {
     case standard
     case substantiveRetry
+    case intentCorrection
 
     var extraSystemRule: String {
         switch self {
@@ -267,6 +306,8 @@ private enum RewriteMode {
             ""
         case .substantiveRetry:
             "- The previous rewrite was too close to the original. Make the rewrite meaningfully stronger while preserving the user's intent."
+        case .intentCorrection:
+            "- The previous rewrite introduced a tool, platform, channel, or app that was not in the current user text. Remove that invented detail and rewrite again from the current text only."
         }
     }
 
@@ -279,6 +320,11 @@ private enum RewriteMode {
             The first rewrite looked like punctuation-only cleanup. Rewrite again and make it substantively better:
             clarify the task, add implied practical details, and make the final instruction ready for an AI assistant to execute.
             """
+        case .intentCorrection:
+            """
+            The first rewrite introduced a named tool, platform, app, or channel that was not in the current rough text.
+            Rewrite again without importing details from earlier prompts or examples.
+            """
         }
     }
 
@@ -286,6 +332,8 @@ private enum RewriteMode {
         switch self {
         case .substantiveRetry:
             return 0.45
+        case .intentCorrection:
+            return 0.15
         case .standard:
             switch targetKind {
             case .codingAssistant:

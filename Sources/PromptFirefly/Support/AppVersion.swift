@@ -1,8 +1,8 @@
 import Foundation
 
 enum AppVersion {
-    private static let fallbackVersion = "0.11.2"
-    private static let fallbackBuild = "112"
+    private static let fallbackVersion = "0.11.3"
+    private static let fallbackBuild = "113"
 
     static var marketingVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? fallbackVersion

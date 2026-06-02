@@ -3,8 +3,8 @@ set -euo pipefail
 
 APP_NAME="PromptFirefly"
 BUNDLE_ID="com.shokhabbos.PromptFirefly"
-APP_VERSION="0.11.2"
-APP_BUILD="112"
+APP_VERSION="0.11.3"
+APP_BUILD="113"
 REPO_URL="${PROMPT_FIREFLY_REPO_URL:-https://github.com/skverall/prompt-firefly.git}"
 INSTALL_ROOT="${PROMPT_FIREFLY_HOME:-$HOME/.prompt-firefly}"
 SOURCE_DIR="$INSTALL_ROOT/source"
