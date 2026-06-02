@@ -9,6 +9,44 @@ enum PromptRewriteService {
         captureSource: String,
         settings: RewriteSettings
     ) async throws -> String {
+        let rewritten = try await requestRewrite(
+            originalPrompt: originalPrompt,
+            projectContext: projectContext,
+            targetKind: targetKind,
+            targetAppName: targetAppName,
+            captureSource: captureSource,
+            settings: settings,
+            mode: .standard
+        )
+
+        if needsSubstantiveRetry(
+            originalPrompt: originalPrompt,
+            rewrittenPrompt: rewritten,
+            targetKind: targetKind
+        ) {
+            return try await requestRewrite(
+                originalPrompt: originalPrompt,
+                projectContext: projectContext,
+                targetKind: targetKind,
+                targetAppName: targetAppName,
+                captureSource: captureSource,
+                settings: settings,
+                mode: .substantiveRetry
+            )
+        }
+
+        return rewritten
+    }
+
+    private static func requestRewrite(
+        originalPrompt: String,
+        projectContext: ProjectContext,
+        targetKind: TargetAppKind,
+        targetAppName: String,
+        captureSource: String,
+        settings: RewriteSettings,
+        mode: RewriteMode
+    ) async throws -> String {
         guard let url = endpointURL(from: settings.baseURL) else {
             throw RewriteServiceError.invalidBaseURL
         }
@@ -22,7 +60,7 @@ enum PromptRewriteService {
         let body = ChatCompletionRequest(
             model: settings.model.isEmpty ? "deepseek-v4-flash" : settings.model,
             messages: [
-                ChatMessage(role: "system", content: systemPrompt(targetKind: targetKind)),
+                ChatMessage(role: "system", content: systemPrompt(targetKind: targetKind, mode: mode)),
                 ChatMessage(
                     role: "user",
                     content: userPrompt(
@@ -30,12 +68,13 @@ enum PromptRewriteService {
                         projectContext: projectContext,
                         targetKind: targetKind,
                         targetAppName: targetAppName,
-                        captureSource: captureSource
+                        captureSource: captureSource,
+                        mode: mode
                     )
                 )
             ],
             thinking: ThinkingSetting(type: "disabled"),
-            temperature: 0.1,
+            temperature: mode.temperature(for: targetKind),
             maxTokens: 1_400,
             stream: false
         )
@@ -61,10 +100,10 @@ enum PromptRewriteService {
         return stripCodeFence(from: content)
     }
 
-    private static func systemPrompt(targetKind: TargetAppKind) -> String {
+    private static func systemPrompt(targetKind: TargetAppKind, mode: RewriteMode) -> String {
         """
         You rewrite the user's rough text so it is ready to paste back into the currently focused app.
-        Output ONLY the replacement text. Do not answer it, do not explain, and do not wrap it in Markdown.
+        Output ONLY the replacement text. Do not answer it, do not explain, and do not wrap it in a code fence.
 
         Hard rules — never break these:
         - Preserve the user's intent and the EXACT action they ask for. Keep the imperative verb's meaning.
@@ -74,11 +113,15 @@ enum PromptRewriteService {
         - Keep the same language as the user for normal text. For terminal commands, keep valid shell syntax.
         - Treat references to files, plans, or docs (e.g. "the implementation plan") as things to OPEN and
           ACT ON, not as topics to write about.
-        - Match the size of the input. If the prompt is already a short, clear command, keep it short and
-          only fix wording. Do not pad it or invent requirements, steps, or constraints the user did not imply.
+        - Choose the length by usefulness, not by the original size. Short terminal commands and normal
+          human messages can stay short. Rough AI-assistant prompts should become specific enough for an
+          assistant to act on without guessing.
+        - Do not invent unrelated scope, fake facts, credentials, file names, dates, or business claims.
+          You may make practical details explicit when they are clearly implied by the user's request.
         - Keep the user's tone and any concrete constraints they gave.
         - Use the project context only to resolve what the user refers to, never to add new scope.
         - Never treat an internal plugin/cache/path shown by the UI as the user's request unless the user clearly typed that path as part of the request.
+        \(mode.extraSystemRule)
 
         Target-specific rules:
         \(targetRules(for: targetKind))
@@ -89,6 +132,9 @@ enum PromptRewriteService {
 
         User: fix the login bug
         Rewrite: Find and fix the bug in the login flow. Reproduce the issue, identify the root cause, and apply the fix.
+
+        User: Слушай, используя плагин ReMotion, сделай, пожалуйста, видео для нашего Инстаграма. Какое-нибудь интересное, с красивыми анимациями и информативное, и главное потом в конце продающееся.
+        Rewrite: Используя плагин ReMotion, создай вертикальное видео для Instagram Reels (9:16) для нашего приложения. Сделай его интересным, визуально красивым и информативным: продумай сценарий, структуру кадров, текст на экране, темп, переходы и анимации. В конце добавь сильный продающий финал с понятным призывом к действию, чтобы ролик был готов к публикации и реально подталкивал зрителя попробовать продукт.
         """
     }
 
@@ -97,8 +143,14 @@ enum PromptRewriteService {
         case .codingAssistant:
             """
             - Rewrite as a clear instruction for an AI coding assistant.
+            - Turn vague wishes into an actionable task: goal, expected result, important constraints,
+              quality bar, and checks or acceptance criteria when useful.
+            - For creative, video, design, plugin, or tool requests, preserve the selected tool/plugin name
+              and include practical production details implied by the request: format, audience, content
+              beats, visual style, final CTA/sales close, and deliverable.
             - Preserve selected tools, plugins, app names, and constraints exactly as the user intended.
             - If a plugin/tool is selected in the UI, do not replace the user's request with that plugin's local filesystem path.
+            - Do not stop at punctuation-only cleanup unless the original is already a detailed, ready-to-run prompt.
             """
         case .terminal:
             """
@@ -132,7 +184,8 @@ enum PromptRewriteService {
         projectContext: ProjectContext,
         targetKind: TargetAppKind,
         targetAppName: String,
-        captureSource: String
+        captureSource: String,
+        mode: RewriteMode
     ) -> String {
         """
         Target app: \(targetAppName)
@@ -145,8 +198,34 @@ enum PromptRewriteService {
         Local project context:
         \(projectContext.summary)
 
+        \(mode.extraUserInstruction)
+
         Rewrite the rough text so it is ready to paste back into \(targetAppName).
         """
+    }
+
+    private static func needsSubstantiveRetry(
+        originalPrompt: String,
+        rewrittenPrompt: String,
+        targetKind: TargetAppKind
+    ) -> Bool {
+        guard targetKind == .codingAssistant else { return false }
+
+        let originalSignature = semanticSignature(from: originalPrompt)
+        let rewrittenSignature = semanticSignature(from: rewrittenPrompt)
+
+        guard originalSignature.count >= 20 else { return false }
+        return originalSignature == rewrittenSignature
+    }
+
+    private static func semanticSignature(from text: String) -> String {
+        var result = ""
+
+        for scalar in text.lowercased().unicodeScalars where CharacterSet.alphanumerics.contains(scalar) {
+            result.unicodeScalars.append(scalar)
+        }
+
+        return result
     }
 
     private static func endpointURL(from baseURL: String) -> URL? {
@@ -175,6 +254,50 @@ enum PromptRewriteService {
         }
 
         return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private enum RewriteMode {
+    case standard
+    case substantiveRetry
+
+    var extraSystemRule: String {
+        switch self {
+        case .standard:
+            ""
+        case .substantiveRetry:
+            "- The previous rewrite was too close to the original. Make the rewrite meaningfully stronger while preserving the user's intent."
+        }
+    }
+
+    var extraUserInstruction: String {
+        switch self {
+        case .standard:
+            ""
+        case .substantiveRetry:
+            """
+            The first rewrite looked like punctuation-only cleanup. Rewrite again and make it substantively better:
+            clarify the task, add implied practical details, and make the final instruction ready for an AI assistant to execute.
+            """
+        }
+    }
+
+    func temperature(for targetKind: TargetAppKind) -> Double {
+        switch self {
+        case .substantiveRetry:
+            return 0.45
+        case .standard:
+            switch targetKind {
+            case .codingAssistant:
+                return 0.35
+            case .codeEditor:
+                return 0.25
+            case .messaging, .browser, .general:
+                return 0.2
+            case .terminal:
+                return 0.0
+            }
+        }
     }
 }
 

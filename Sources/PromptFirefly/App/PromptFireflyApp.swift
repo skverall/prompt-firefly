@@ -38,6 +38,10 @@ private struct MenuBarView: View {
 
         Divider()
 
+        Text(AppVersion.displayText)
+
+        Divider()
+
         Button("Quit") {
             NSApplication.shared.terminate(nil)
         }

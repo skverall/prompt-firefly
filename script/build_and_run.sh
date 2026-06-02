@@ -4,6 +4,8 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="PromptFirefly"
 BUNDLE_ID="com.shokhabbos.PromptFirefly"
+APP_VERSION="0.11.2"
+APP_BUILD="112"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -51,9 +53,9 @@ cat >"$INFO_PLIST" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>$APP_VERSION</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$APP_BUILD</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSAppleEventsUsageDescription</key>
@@ -100,7 +102,7 @@ case "$MODE" in
     ;;
   --verify|verify)
     open_app
-    sleep 1
+    sleep 2
     pgrep -x "$APP_NAME" >/dev/null
     ;;
   *)

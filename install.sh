@@ -3,6 +3,8 @@ set -euo pipefail
 
 APP_NAME="PromptFirefly"
 BUNDLE_ID="com.shokhabbos.PromptFirefly"
+APP_VERSION="0.11.2"
+APP_BUILD="112"
 REPO_URL="${PROMPT_FIREFLY_REPO_URL:-https://github.com/skverall/prompt-firefly.git}"
 INSTALL_ROOT="${PROMPT_FIREFLY_HOME:-$HOME/.prompt-firefly}"
 SOURCE_DIR="$INSTALL_ROOT/source"
@@ -114,9 +116,9 @@ fi
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>$APP_VERSION</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$APP_BUILD</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>NSAppleEventsUsageDescription</key>

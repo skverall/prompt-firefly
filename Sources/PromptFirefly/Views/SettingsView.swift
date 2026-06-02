@@ -47,8 +47,17 @@ struct SettingsView: View {
                 .frame(width: 46, height: 46)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("Prompt Firefly")
-                    .font(.title3.weight(.semibold))
+                HStack(spacing: 8) {
+                    Text("Prompt Firefly")
+                        .font(.title3.weight(.semibold))
+
+                    Text(AppVersion.badgeText)
+                        .font(.caption.monospaced().weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(.quaternary, in: Capsule())
+                }
 
                 Text(statusLine)
                     .font(.callout)
@@ -216,7 +225,7 @@ struct SettingsView: View {
     private var footerStatus: String {
         let target = targetTracker.targetLabel
         let context = appState.currentContextLabel.isEmpty ? "Context: waiting" : appState.currentContextLabel
-        return "\(target) • \(context)"
+        return "\(AppVersion.displayText) • \(target) • \(context)"
     }
 
     private var saveBadge: some View {
