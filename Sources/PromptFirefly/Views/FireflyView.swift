@@ -3,10 +3,6 @@ import SwiftUI
 struct FireflyView: View {
     @ObservedObject var appState: AppState
 
-    @State private var window: NSWindow?
-    @State private var dragStartOrigin: CGPoint?
-    @State private var dragDistance: CGFloat = 0
-
     var body: some View {
         ZStack {
             Circle()
@@ -24,11 +20,7 @@ struct FireflyView: View {
         }
         .frame(width: 74, height: 74)
         .background(Color.clear)
-        .background(WindowAccessor { resolvedWindow in
-            window = resolvedWindow
-        })
         .contentShape(Circle())
-        .gesture(dragOrTapGesture)
         .contextMenu {
             Button("Rewrite") {
                 appState.rewriteFocusedPrompt()
@@ -44,37 +36,6 @@ struct FireflyView: View {
             }
         }
         .help(appState.statusMessage)
-    }
-
-    private var dragOrTapGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                guard let window else { return }
-
-                if dragStartOrigin == nil {
-                    dragStartOrigin = window.frame.origin
-                }
-
-                dragDistance = hypot(value.translation.width, value.translation.height)
-
-                guard let start = dragStartOrigin, dragDistance > 3 else { return }
-
-                let newOrigin = CGPoint(
-                    x: start.x + value.translation.width,
-                    y: start.y - value.translation.height
-                )
-                window.setFrameOrigin(newOrigin)
-            }
-            .onEnded { _ in
-                defer {
-                    dragStartOrigin = nil
-                    dragDistance = 0
-                }
-
-                if dragDistance < 8 {
-                    appState.rewriteFocusedPrompt()
-                }
-            }
     }
 
     private var statusIcon: some View {
@@ -104,19 +65,6 @@ struct FireflyView: View {
             RadialGradient(colors: [.mint, .green, .teal], center: .topLeading, startRadius: 4, endRadius: 58)
         case .error:
             RadialGradient(colors: [.orange, .red, .pink], center: .topLeading, startRadius: 4, endRadius: 58)
-        }
-    }
-
-    private var glowColor: Color {
-        switch appState.status {
-        case .idle:
-            .green
-        case .working:
-            .cyan
-        case .success:
-            .mint
-        case .error:
-            .orange
         }
     }
 }

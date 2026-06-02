@@ -84,7 +84,13 @@ final class FireflyWindowController: NSWindowController {
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
-        panel.contentView = ClearHostingView(rootView: FireflyView(appState: appState))
+
+        let contentView = ClearHostingView(rootView: FireflyView(appState: appState))
+        contentView.clickAction = {
+            appState.rewriteFocusedPrompt()
+        }
+
+        panel.contentView = contentView
         panel.contentView?.wantsLayer = true
         panel.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
 
@@ -126,6 +132,12 @@ final class SettingsWindowController: NSWindowController {
 private final class ClearHostingView<Content: View>: NSHostingView<Content> {
     override var isOpaque: Bool { false }
 
+    var clickAction: (() -> Void)?
+
+    private var dragStartScreenLocation: NSPoint?
+    private var dragStartWindowOrigin: NSPoint?
+    private var dragDistance: CGFloat = 0
+
     required init(rootView: Content) {
         super.init(rootView: rootView)
         wantsLayer = true
@@ -140,5 +152,51 @@ private final class ClearHostingView<Content: View>: NSHostingView<Content> {
         super.viewDidMoveToWindow()
         window?.backgroundColor = .clear
         window?.isOpaque = false
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        dragStartScreenLocation = NSEvent.mouseLocation
+        dragStartWindowOrigin = window?.frame.origin
+        dragDistance = 0
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard
+            let window,
+            let dragStartScreenLocation,
+            let dragStartWindowOrigin
+        else {
+            return
+        }
+
+        let currentLocation = NSEvent.mouseLocation
+        let deltaX = currentLocation.x - dragStartScreenLocation.x
+        let deltaY = currentLocation.y - dragStartScreenLocation.y
+        dragDistance = hypot(deltaX, deltaY)
+
+        guard dragDistance > 2 else { return }
+
+        window.setFrameOrigin(
+            NSPoint(
+                x: dragStartWindowOrigin.x + deltaX,
+                y: dragStartWindowOrigin.y + deltaY
+            )
+        )
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        defer {
+            dragStartScreenLocation = nil
+            dragStartWindowOrigin = nil
+            dragDistance = 0
+        }
+
+        if dragDistance < 8 {
+            clickAction?()
+        }
     }
 }
