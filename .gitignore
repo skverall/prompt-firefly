@@ -1,0 +1,11 @@
+.build/
+dist/
+.DS_Store
+*.xcuserstate
+DerivedData/
+.swiftpm/
+.claude/
+work/
+IMPLEMENTATION_PLAN.md
+*.log
+*.tmp
